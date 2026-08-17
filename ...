@@ -1,1 +1,345 @@
+--[[
+                            QUANTUM ONYX HUB PROJECT
+            Được phát triển bởi Quantum Onyx Team ( discord.gg/quantumonyx )
+            Giao diện KEYSYSTEM được thiết kế qua Claude AI
+            Dịch vụ vận hành bởi Luarmor.net
+            Biên dịch bởi: Flazhy
+            Bản quyền © 2022-2026 Quantum Onyx Team - Mọi quyền được bảo lưu.
+]]--
+-- 1. TỐI ƯU HÓA BIẾN GLOBAL (MÔI TRƯỜNG THỰC THI)local task, os, pcall, pairs, ipairs, tostring, math, string = task, os, pcall, pairs, ipairs, tostring, math, stringlocal Vector2, UDim2, UDim, Color3, Instance, Enum = Vector2, UDim2, UDim, Color3, Instance, Enum
+-- 2. CẤU HÌNH LIÊN KẾT SCRIPT & THÔNG TIN DỰ ÁNlocal Directory = "https://githubusercontent.com"local Api = "https://luarmor.net"
+-- Cấu hình Key Premium cố định theo yêu cầu của bạnlocal CORRECT_KEY = "kietdeptrai"
+-- Danh sách các Script phân loại theo ID Game (GameId)local Scripts = {
+    Free = {
+        [994732206] = Directory .. "/BloxFruits.lua",
+        [9186719164] = Directory .. "/SailorPiece.lua",
+        [8191429227] = Directory .. "/CutTrees.lua",
+    },
+    Premium = {
+        [994732206] = Api .. "/0ae9fe4cf963e3a13d25eed0e2ce5940.lua",
+        [10004244222] = Api .. "/63980a492928552d074ceee243a918d6.lua",
+        [9792947201] = Api .. "/50e8e00251d97215e14313c0bb012058.lua",
+        [10200395747] = Api .. "/65265b2869c03f57430ee45357d8c3f9.lua"
+    }
+}
+local SCRIPT_ID  = "0ae9fe4cf963e3a13d25eed0e2ce5940"local FOLDER     = "Quantum Onyx Hub"local KEY_FILE   = FOLDER .. "/Key.json"
+-- Khởi tạo các dịch vụ chính của Robloxlocal Players           = game:GetService("Players")local HttpService       = game:GetService("HttpService")local TweenService      = game:GetService("TweenService")local UserInputService  = game:GetService("UserInputService")local StarterGui        = game:GetService("StarterGui")
+local LocalPlayer       = Players.LocalPlayerlocal Mouse             = LocalPlayer:GetMouse()local gameId            = game.GameId
+-- 3. CÁC HÀM TIỆN ÍCH HỆ THỐNG (UTILITY FUNCTIONS)local function Tween(obj, props, t, style, dir)
+    style = style or Enum.EasingStyle.Quint
+    dir = dir or Enum.EasingDirection.Out
+    local tween = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+    tween:Play()
+    return tweenend
+local function Protect(gui)
+    local env = (getgenv and getgenv()) or _G
+    if env.HIDEUI then
+        gui.Parent = env.HIDEUI
+    elseif gethui then
+        gui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(gui)
+        gui.Parent = game:GetService("CoreGui")
+    else
+        gui.Parent = game:GetService("CoreGui")
+    endend
+local function New(class, props, parent)
+    local inst = Instance.new(class)
+    for k, v in pairs(props) do
+        if k ~= "Children" and k ~= "Parent" then
+            pcall(function() inst[k] = v end)
+        end
+    end
+    if props.Children then
+        for _, c in ipairs(props.Children) do
+            pcall(function() c.Parent = inst end)
+        end
+    end
+    inst.Parent = props.Parent or parent
+    return instend
+local function CircleRipple(btn, mx, my)
+    task.spawn(function()
+        btn.ClipsDescendants = true
+        local nx = mx - btn.AbsolutePosition.X
+        local ny = my - btn.AbsolutePosition.Y
+        local sz = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.6
+        
+        local c = New("ImageLabel", {
+            Name = "Ripple",
+            Image = "rbxassetid://266543268",
+            ImageColor3 = Color3.fromRGB(255, 255, 255),
+            ImageTransparency = 0.82,
+            BackgroundTransparency = 1,
+            ZIndex = btn.ZIndex + 5,
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0, nx, 0, ny),
+        }, btn)
+        
+        Tween(c, { Size = UDim2.new(0, sz, 0, sz), Position = UDim2.new(0.5, -sz/2, 0.5, -sz/2) }, 0.45, Enum.EasingStyle.Quad)
+        Tween(c, { ImageTransparency = 1 }, 0.45, Enum.EasingStyle.Linear)
+        task.wait(0.46)
+        c:Destroy()
+    end)end
+local function Notify(title, desc, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "Quantum Onyx",
+            Text = desc or "",
+            Duration = duration or 5,
+        })
+    end)end
+-- 4. HỆ THỐNG LƯU TRỮ VÀ TẢI SCRIPTSlocal function SaveKey(key)
+    if not isfolder(FOLDER) then makefolder(FOLDER) end
+    pcall(writefile, KEY_FILE, HttpService:JSONEncode({ key = key }))end
+local function LoadSavedKey()
+    if isfolder(FOLDER) and isfile(KEY_FILE) then
+        local ok, v = pcall(function()
+            return HttpService:JSONDecode(readfile(KEY_FILE))
+        end)
+        if ok and type(v) == "table" and v.key then return v.key end
+    end
+    return ""end
+local function apply_script_key(key)
+    getgenv().script_key = key
+    getgenv().key = key
+    if type(_G) == "table" then _G.script_key = key end
+    if type(shared) == "table" then shared.script_key = key endend
+local function LoadScript(tier, key)
+    local tbl = Scripts[tier]
+    if not tbl then return end
+    local url = tbl[gameId]
+    if not url then
+        warn("[Quantum Onyx] Không tìm thấy script " .. tier .. " cho GameId: " .. tostring(gameId))
+        return
+    end
+    if tier == "Premium" and key then
+        apply_script_key(key)
+    end
+    local ok, err = pcall(function() loadstring(game:HttpGet(url))() end)
+    if not ok then warn("[Quantum Onyx] Lỗi thực thi script: " .. tostring(err)) endend
+-- 5. HÀM DỰNG GIAO DIỆN HỆ THỐNG NHẬP KEY (KEY SYSTEM UI)function ShowKeyUI()
+    local gameName = "Không rõ"
+    pcall(function()
+        gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+
+    local SG = Instance.new("ScreenGui")
+    SG.Name = "QuantumOnyx_" .. tostring(math.random(1e6))
+    SG.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    SG.ResetOnSpawn = false
+    SG.IgnoreGuiInset = true
+    Protect(SG)
+    
+    local Backdrop = New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 200,
+        Parent = SG,
+    })
+    
+    local W, H = 450, 310
+    local Card = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, W, 0, H),
+        BackgroundColor3 = Color3.fromRGB(6, 3, 12),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        ZIndex = 201,
+        ClipsDescendants = true,
+        Parent = SG,
+        Children = {
+            New("UICorner", { CornerRadius = UDim.new(0, 14) }),
+            New("UIStroke", {
+                Color = Color3.fromRGB(110, 50, 210),
+                Transparency = 0.38,
+                Thickness = 1,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+            }),
+        }
+    })
+    
+    -- Nền trang trí hiệu ứng phát sáng (Neon Glow Decor)
+    New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(80, 20, 160),
+        BackgroundTransparency = 0.88,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, -60, 0, -60),
+        Size = UDim2.new(0, 220, 0, 220),
+        ZIndex = 201,
+        Parent = Card,
+        Children = { New("UICorner", { CornerRadius = UDim.new(1, 0) }) }
+    })
+    
+    -- Tiêu đề của Giao diện (Header)
+    local Header = New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(12, 8, 22),
+        BackgroundTransparency = 0.4,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 50),
+        ZIndex = 202,
+        Parent = Card,
+        Children = {
+            New("TextLabel", {
+                Text = "QUANTUM ONYX HUB",
+                Font = Enum.Font.GothamBold,
+                TextSize = 16,
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Position = UDim2.new(0, 15, 0, 0),
+                Size = UDim2.new(0.7, 0, 1, 0),
+                BackgroundTransparency = 1,
+                ZIndex = 203
+            }),
+            New("TextButton", {
+                Name = "CloseBtn",
+                Text = "×",
+                Font = Enum.Font.GothamMedium,
+                TextSize = 24,
+                TextColor3 = Color3.fromRGB(150, 150, 160),
+                Position = UDim2.new(1, -40, 0, 5),
+                Size = UDim2.new(0, 30, 0, 30),
+                BackgroundTransparency = 1,
+                ZIndex = 203
+            })
+        }
+    })
+
+    -- Khung chứa ô TextBox nhập Key
+    local InputBoxContainer = New("Frame", {
+        Position = UDim2.new(0, 20, 0, 80),
+        Size = UDim2.new(1, -40, 0, 45),
+        BackgroundColor3 = Color3.fromRGB(15, 10, 25),
+        BorderSizePixel = 0,
+        ZIndex = 202,
+        Parent = Card,
+        Children = {
+            New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+            New("UIStroke", { Color = Color3.fromRGB(80, 40, 150), Thickness = 1 })
+        }
+    })
+
+    local TextBox = New("TextBox", {
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        PlaceholderText = "Nhập mã khóa (Key) của bạn tại đây...",
+        Text = LoadSavedKey(),
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        PlaceholderColor3 = Color3.fromRGB(100, 90, 120),
+        BackgroundTransparency = 1,
+        ZIndex = 203,
+        Parent = InputBoxContainer
+    })
+
+    -- Thiết lập các nút chức năng chính trên Giao diện
+    local FreeBtn = New("TextButton", {
+        Position = UDim2.new(0, 20, 0, 145),
+        Size = UDim2.new(0.44, 0, 0, 40),
+        BackgroundColor3 = Color3.fromRGB(35, 15, 60),
+        Text = "Bản Miễn Phí",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Color3.fromRGB(200, 180, 255),
+
+ZIndex = 202,
+Parent = Card,
+Children = { New("UICorner", { CornerRadius = UDim.new(0, 8) }) }
+})
+local VerifyBtn = New("TextButton", {
+Position = UDim2.new(0.54, 0, 0, 145),
+Size = UDim2.new(0.44, 0, 0, 40),
+BackgroundColor3 = Color3.fromRGB(90, 35, 180),
+Text = "Xác Minh Premium",
+Font = Enum.Font.GothamBold,
+TextSize = 14,
+TextColor3 = Color3.fromRGB(255, 255, 255),
+ZIndex = 202,
+Parent = Card,
+Children = { New("UICorner", { CornerRadius = UDim.new(0, 8) }) }
+})
+local GetKeyBtn = New("TextButton", {
+Position = UDim2.new(0, 20, 0, 200),
+Size = UDim2.new(1, -40, 0, 35),
+BackgroundColor3 = Color3.fromRGB(20, 15, 30),
+Text = "Lấy Mã Key (Discord/Get Key)",
+Font = Enum.Font.Gotham,
+TextSize = 13,
+TextColor3 = Color3.fromRGB(160, 150, 180),
+ZIndex = 202,
+Parent = Card,
+Children = {
+New("UICorner", { CornerRadius = UDim.new(0, 6) }),
+New("UIStroke", { Color = Color3.fromRGB(50, 40, 70), Thickness = 1 })
+}
+})
+local FooterInfo = New("TextLabel", {
+Text = string.format("Trò chơi: %s | Phiên bản: v.Freemium", gameName),
+Font = Enum.Font.Gotham,
+TextSize = 11,
+TextColor3 = Color3.fromRGB(110, 100, 130),
+Position = UDim2.new(0, 20, 1, -35),
+Size = UDim2.new(1, -40, 0, 20),
+BackgroundTransparency = 1,
+ZIndex = 202,
+Parent = Card
+})
+-- Hiệu ứng hình ảnh mượt mà khi mở Menu UI
+Tween(Backdrop, { BackgroundTransparency = 0.5 }, 0.4)
+Card.Size = UDim2.new(0, W * 0.8, 0, H * 0.8)
+Tween(Card, { Size = UDim2.new(0, W, 0, H) }, 0.5, Enum.EasingStyle.Back)
+-- SỰ KIỆN TƯƠNG TÁC NÚT (CONNECTIONS)
+Header.CloseBtn.MouseButton1Click:Connect(function()
+Tween(Card, { Size = UDim2.new(0, W * 0.5, 0, H * 0.5), BackgroundTransparency = 1 }, 0.3)
+Tween(Backdrop, { BackgroundTransparency = 1 }, 0.3)
+task.wait(0.3)
+SG:Destroy()
+end)
+FreeBtn.MouseButton1Click:Connect(function()
+CircleRipple(FreeBtn, Mouse.X, Mouse.Y)
+Notify("Quantum Onyx", "Đang khởi chạy phiên bản Miễn Phí...", 3)
+SG:Destroy()
+LoadScript("Free", nil)
+end)
+GetKeyBtn.MouseButton1Click:Connect(function()
+CircleRipple(GetKeyBtn, Mouse.X, Mouse.Y)
+if setclipboard then
+setclipboard("discord.gg")
+Notify("Hệ Thống", "Đã sao chép liên kết Discord vào khay nhớ tạm!", 3)
+else
+Notify("Hệ Thống", "Hãy tham gia Discord: discord.gg/quantumonyx", 5)
+end
+end)
+VerifyBtn.MouseButton1Click:Connect(function()
+CircleRipple(VerifyBtn, Mouse.X, Mouse.Y)
+local inputKey = TextBox.Text
+if inputKey == "" then
+Notify("Cảnh Báo", "Vui lòng không để trống mã Key!", 3)
+return
+end
+Notify("Xác Thực", "Đang kiểm tra mã khóa...", 1.5)
+task.wait(1)
+-- Kiểm tra logic so khớp key
+if inputKey == CORRECT_KEY then
+SaveKey(inputKey)
+Notify("Thành Công", "Xác thực Premium thành công!", 3)
+SG:Destroy()
+LoadScript("Premium", inputKey)
+else
+Notify("Thất Bại", "Mã khóa không chính xác hoặc đã hết hạn!", 4)
+end
+end)
+end
+-- 6. KHỞI CHẠY KIỂM TRA KEY KHI BẮT ĐẦU SCRIPT (AUTO-RUN EXECUTION)
+local savedKey = LoadSavedKey()
+if savedKey == CORRECT_KEY then
+Notify("Tự Động Đăng Nhập", "Phát hiện mã khóa Premium hợp lệ! Đang tải...", 3)
+LoadScript("Premium", savedKey)
+else
+ShowKeyUI()
+end
+
 
